@@ -5,38 +5,7 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:tflite_flutter_helper_plus/tflite_flutter_helper_plus.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
-
-class MainScreen extends StatefulWidget {
-  @override
-  _MainScreenState createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  List<String> data = ['Substance 1', 'Substance 2', 'Substance 3', 'Substance 4'];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Main Screen'),
-      ),
-      body: ListView.builder(
-        itemCount: data.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(data[index]),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SubstanceFormScreen()),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
+import 'package:image/image.dart' as img;
 
 class SubstanceFormScreen extends StatefulWidget {
   @override
@@ -93,19 +62,15 @@ class _SubstanceFormScreenState extends State<SubstanceFormScreen> {
       var inputImage = _preProcessImage(image, 224);
       print('Input Image Size: ${inputImage.getHeight()} x ${inputImage.getWidth()}');
 
-      var output = List.filled(_labels.length, 0).reshape([1, _labels.length]);
+      var output = List.filled(2, 0.0).reshape([1, 2]);
 
-      // Assurez-vous que le tableau d'entrée a la bonne forme
-      if (inputImage.getHeight() == 224 && inputImage.getWidth() == 224) {
-        _interpreter.run(inputImage.buffer.asUint8List(), output);
-        print('Output after running model: $output');
-        _processOutput(output);
-      } else {
-        print('Invalid input size: ${inputImage.getWidth()} x ${inputImage.getHeight()}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('La taille de l\'image d\'entrée est invalide.')),
-        );
-      }
+      var inputBuffer = inputImage.buffer.asUint8List();
+      var inputShape = [1, inputImage.getHeight(), inputImage.getWidth(), 3];
+
+      _interpreter.run(inputBuffer.reshape(inputShape), output);
+      print('Output after running model: $output');
+
+      _processOutput(output);
     } catch (e) {
       print('Error running model: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -115,21 +80,36 @@ class _SubstanceFormScreenState extends State<SubstanceFormScreen> {
   }
 
   TensorImage _preProcessImage(File image, int inputSize) {
-    // Chargez l'image depuis le fichier
-    TensorImage tensorImage = TensorImage.fromFile(image);
+    img.Image? originalImage = img.decodeImage(File(image.path).readAsBytesSync());
+
+    if (originalImage == null) {
+      throw Exception("Failed to decode image");
+    }
+
+    print('Original Image Size: ${originalImage.width} x ${originalImage.height}');
+
+    img.Image resizedImage = img.copyResize(originalImage, width: inputSize, height: inputSize);
+    print('Resized Image Size: ${resizedImage.width} x ${resizedImage.height}');
+
+    TensorImage tensorImage = TensorImage.fromImage(resizedImage);
+
     var imageProcessor = ImageProcessorBuilder()
-        .add(ResizeOp(inputSize, inputSize, ResizeMethod.nearestneighbour))
-        .add(NormalizeOp(0, 255)) // Normalisation, ajustez selon les besoins de votre modèle
+        .add(NormalizeOp(0, 255))
         .build();
 
     tensorImage = imageProcessor.process(tensorImage);
+
+    print('Processed TensorImage buffer: ${tensorImage.buffer.asUint8List().length} bytes');
+    print('TensorImage size: ${tensorImage.getHeight()} x ${tensorImage.getWidth()}');
+
     return tensorImage;
   }
 
-  void _processOutput(List output) {
+  void _processOutput(List<dynamic> output) {
     print('Output before processing: $output');
-    if (output.length == 1 && output[0].length == _labels.length) {
-      int predictedIndex = output[0].indexOf(output[0].reduce(max));
+    if (output.isNotEmpty && output[0] is List && output[0][0] is double) {
+      List<double> outputValues = List<double>.from(output[0]); // Accédez directement au tableau de sortie
+      int predictedIndex = outputValues.indexOf(outputValues.reduce(max));
       if (predictedIndex >= 0 && predictedIndex < _labels.length) {
         String substanceName = _labels[predictedIndex];
         setState(() {
