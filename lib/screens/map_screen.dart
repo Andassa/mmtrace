@@ -3,6 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:mmtrace/screens/permit_tracking_screen.dart';
+import 'permit_details_screen.dart';
 
 class MapScreen extends StatefulWidget {
   @override
@@ -10,9 +12,10 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  List<List<LatLng>> _polygons = []; // Liste de listes pour les polygones
-  final _center = LatLng(-18.8792, 47.5079); // Centre de Madagascar
-  final _zoom = 6.0;
+  List<List<LatLng>> _polygons = [];
+  final LatLng _center = LatLng(-18.8792, 47.5079);
+  final double _zoom = 6.0;
+  List<Map<String, dynamic>> _polygonData = [];
 
   @override
   void initState() {
@@ -21,28 +24,110 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _fetchPermisGeometries() async {
-    final response = await http.get(Uri.parse('http://192.168.88.69:3000/api/utilisateur/getPermisGeometries'));
+    try {
+      final response = await http.get(Uri.parse('http://192.168.88.69:3000/api/utilisateur/getPermisGeometries'));
 
-    if (response.statusCode == 200) {
-      final List data = json.decode(response.body);
-      print("Données reçues : $data");  // Affiche les données dans la console pour vérification
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
 
-      setState(() {
-        // Transformation des données en listes de coordonnées LatLng pour chaque polygone
-        _polygons = data.map((item) {
-          final List coordinates = item['geom']['coordinates'][0];
-          if (coordinates.isNotEmpty) {
-            return coordinates.map((point) => LatLng(point[1], point[0])).toList();
+        setState(() {
+          _polygons = [];
+          for (var item in data) {
+            if (item['geom'] != null) {
+              final geometry = json.decode(item['geom']);
+              final coordinates = geometry['coordinates'];
+
+              if (geometry['type'] == 'MultiPolygon' && coordinates is List) {
+                List<LatLng> polygonPoints = [];
+
+                for (var polygon in coordinates) {
+                  var points = polygon[0].map<LatLng>((point) {
+                    if (point is List && point.length >= 2) {
+                      return LatLng(
+                        double.parse(point[1].toString()),  // latitude
+                        double.parse(point[0].toString()),  // longitude
+                      );
+                    }
+                    return LatLng(0, 0); // Valeur par défaut
+                  }).toList();
+
+                  polygonPoints.addAll(points);
+                }
+
+                _polygons.add(polygonPoints);
+              }
+            }
           }
-          return <LatLng>[];
-        }).toList();
 
-        // Affichage des coordonnées pour vérifier
-        print("Coordonnées des polygones : $_polygons");
-      });
-    } else {
-      throw Exception('Erreur lors de la récupération des données de permis.');
+          _polygonData = data.map((item) => item as Map<String, dynamic>).toList();
+        });
+      } else {
+        throw Exception('Erreur : ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Erreur : ${e.toString()}');
     }
+  }
+
+  void _showPolygonInfo(BuildContext context, Map<String, dynamic> polygonData) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Info sur le polygone'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: [
+                ...polygonData.entries.map((entry) {
+                  return Text('${entry.key}: ${entry.value}');
+                }).toList(),
+                SizedBox(height: 10),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => PermitDetailsScreen(permitData: polygonData),
+                      ),
+                    );
+                  },
+                  child: Text('Voir détails du permis', style: TextStyle(color: Colors.blue)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => PermitTrackingScreen(),
+                      ),
+                    );
+                  },
+                  child: Text('Suivi du permis', style: TextStyle(color: Colors.blue)),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: Text('Fermer'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  bool isPointInPolygon(LatLng point, List<LatLng> polygon) {
+    bool inside = false;
+    for (int i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      if ((polygon[i].longitude > point.longitude) != (polygon[j].longitude > point.longitude) &&
+          (point.latitude < (polygon[j].latitude - polygon[i].latitude) * (point.longitude - polygon[i].longitude) /
+              (polygon[j].longitude - polygon[i].longitude) + polygon[i].latitude)) {
+        inside = !inside;
+      }
+    }
+    return inside;
   }
 
   @override
@@ -55,9 +140,14 @@ class _MapScreenState extends State<MapScreen> {
         options: MapOptions(
           initialCenter: _center,
           initialZoom: _zoom,
-          interactionOptions: const InteractionOptions(
-            flags: ~InteractiveFlag.doubleTapZoom,
-          ),
+          onTap: (tapPosition, point) {
+            for (int i = 0; i < _polygons.length; i++) {
+              if (isPointInPolygon(point, _polygons[i])) {
+                _showPolygonInfo(context, _polygonData[i]);
+                break;
+              }
+            }
+          },
         ),
         children: [
           TileLayer(
@@ -65,25 +155,14 @@ class _MapScreenState extends State<MapScreen> {
             userAgentPackageName: 'com.example.mmtrace',
           ),
           PolygonLayer(
-            polygons: _polygons.isNotEmpty
-                ? _polygons.map((points) => Polygon(
-              points: points,
-              color: Colors.blue.withOpacity(0.3),
-              borderColor: Colors.blue,
-              borderStrokeWidth: 3,
-            )).toList()
-                : [
-              Polygon(
-                points: [
-                  LatLng(-18.8792, 47.5079),
-                  LatLng(-18.8782, 47.5070),
-                  LatLng(-18.8785, 47.5080),
-                ],
-                color: Colors.red.withOpacity(0.5),
-                borderColor: Colors.red,
+            polygons: _polygons.map<Polygon>((points) {
+              return Polygon(
+                points: points,
+                color: Colors.blue.withOpacity(0.3),
+                borderColor: Colors.blue,
                 borderStrokeWidth: 3,
-              ),
-            ],
+              );
+            }).toList(),
           ),
         ],
       ),

@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: LoginScreen(), // Définit l'écran de connexion comme écran d'accueil
+      home: LoginScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
@@ -33,24 +33,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    HomeScreen(),
-    MapScreen(),
-    PermitDetailsScreen(),
-    SubstanceFormScreen(),
-    PermitTrackingScreen(),
-  ];
-
-  void _onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: _getScreen(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
@@ -67,5 +53,34 @@ class _MainScreenState extends State<MainScreen> {
         type: BottomNavigationBarType.fixed,
       ),
     );
+  }
+
+  Widget _getScreen() {
+    switch (_currentIndex) {
+      case 0:
+        return HomeScreen();
+      case 1:
+        return MapScreen();
+      case 2:
+      // Passer des données fictives pour les détails du permis
+        return PermitDetailsScreen(permitData: {
+          'gid': '12345',
+          'registre_1': 'John Doe',
+          'type_tit_1': 'Mining Permit',
+          'shape_area': '1000 ha',
+        });
+      case 3:
+        return SubstanceFormScreen();
+      case 4:
+        return PermitTrackingScreen();
+      default:
+        return HomeScreen();
+    }
+  }
+
+  void _onTabTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
   }
 }

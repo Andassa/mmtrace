@@ -1,127 +1,141 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-class PermitDetailsScreen extends StatelessWidget {
+class PermitDetailsScreen extends StatefulWidget {
+  final Map<String, dynamic> permitData;
+
+  PermitDetailsScreen({required this.permitData});
+
   @override
-  Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text('Permit Details', style: TextStyle(color: CupertinoColors.white)),
-        backgroundColor: CupertinoColors.systemBlue,
-        brightness: Brightness.light,
-      ),
-      child: SafeArea(
-        child: Container(
-          color: CupertinoColors.systemGrey6,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Text(
-                  'Permit Information',
-                  style: TextStyle(
-                    fontSize: 28.0,
-                    fontWeight: FontWeight.bold,
-                    color: CupertinoColors.black,
-                  ),
-                ),
-                SizedBox(height: 20),
+  _PermitDetailsScreenState createState() => _PermitDetailsScreenState();
+}
 
-                // Permit Details Section
-                Expanded(
-                  child: ListView(
-                    children: [
-                      _buildPermitDetailCard('Permit ID', '12345', Icons.perm_identity),
-                      _buildPermitDetailCard('Permit Holder', 'John Doe Mining Co.', Icons.business),
-                      _buildPermitDetailCard('Permit Type', 'Exploration', Icons.category),
-                      _buildPermitDetailCard('Issued Date', '01/09/2023', Icons.calendar_today),
-                      _buildPermitDetailCard('Expiration Date', '01/09/2028', Icons.calendar_today),
-                      _buildPermitDetailCard('Status', 'Active', Icons.check_circle_outline),
-                    ],
-                  ),
-                ),
+class _PermitDetailsScreenState extends State<PermitDetailsScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late String _permitHolder;
+  late String _permitType;
+  late String _shapeArea;
 
-                // Modify Button
-                Center(
-                  child: CupertinoButton(
-                    color: CupertinoColors.activeBlue,
-                    borderRadius: BorderRadius.circular(8),
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: Text(
-                      'Modify Permit Details',
-                      style: TextStyle(
-                        color: CupertinoColors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onPressed: () {
-                      // Logic to modify or view full permit details
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _permitHolder = widget.permitData['registre_1'];
+    _permitType = widget.permitData['type_tit_1'];
+    _shapeArea = widget.permitData['shape_area'].toString();
   }
 
-  // Helper Widget to create iOS-style Permit Detail Cards
-  Widget _buildPermitDetailCard(String title, String value, IconData icon) {
-    return GestureDetector(
-      onTap: () {
-        // Optional: Logic for card tap
-      },
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: CupertinoColors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: CupertinoColors.systemGrey.withOpacity(0.2),
-              blurRadius: 4.0,
-              spreadRadius: 1.0,
-            ),
-          ],
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Permit Details',
+          style: TextStyle(color: Colors.white),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
+        backgroundColor: Colors.blue,
+      ),
+      body: SafeArea(
+        child: Container(
+          color: Colors.grey[200],
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: CupertinoColors.activeBlue, size: 24),
-              SizedBox(width: 12),
+              Text(
+                'Permit Information',
+                style: TextStyle(
+                  fontSize: 32.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              SizedBox(height: 20),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: CupertinoColors.systemGrey,
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    children: [
+                      _buildTextField(
+                        'Permit Holder',
+                        _permitHolder,
+                            (value) {
+                          _permitHolder = value;
+                        },
+                        'Enter the name of the permit holder.',
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      value,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: CupertinoColors.black,
+                      SizedBox(height: 12),
+                      _buildTextField(
+                        'Permit Type',
+                        _permitType,
+                            (value) {
+                          _permitType = value;
+                        },
+                        'Specify the type of permit.',
                       ),
-                    ),
-                  ],
+                      SizedBox(height: 12),
+                      _buildTextField(
+                        'Shape Area',
+                        _shapeArea,
+                            (value) {
+                          _shapeArea = value;
+                        },
+                        'Enter the area of the permit in square meters.',
+                      ),
+                      SizedBox(height: 20),
+                      Center(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (_formKey.currentState!.validate()) {
+                              _showModifyConfirmation(context);
+                            }
+                          },
+                          child: Text('Modify Permit Details'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField(String label, String initialValue, Function(String) onSaved, String hint) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            border: OutlineInputBorder(),
+          ),
+          controller: TextEditingController(text: initialValue),
+          onChanged: onSaved,
+        ),
+        SizedBox(height: 4),
+      ],
+    );
+  }
+
+  void _showModifyConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Modify Permit'),
+          content: Text('Changes have been saved successfully.'),
+          actions: [
+            TextButton(
+              child: Text('OK'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        );
+      },
     );
   }
 }

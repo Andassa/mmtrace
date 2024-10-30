@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'map_screen.dart'; // Importez vos écrans ici
+import 'map_screen.dart';
 import 'permit_details_screen.dart';
 import 'substance_form_screen.dart';
 import 'permit_tracking_screen.dart';
@@ -13,9 +13,11 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(
-          'Mining App Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+        title: Center(
+          child: Text(
+            'Mining App Dashboard',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.white),
+          ),
         ),
         backgroundColor: Color(0xFF1976D2),
         elevation: 4,
@@ -38,11 +40,7 @@ class HomeScreen extends StatelessWidget {
               Container(
                 padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: Color(0xFF1976D2),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
@@ -54,7 +52,6 @@ class HomeScreen extends StatelessWidget {
                 ),
                 width: MediaQuery.of(context).size.width * 0.9,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Real-Time Substance Prices',
@@ -63,6 +60,7 @@ class HomeScreen extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                         fontSize: 24,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 15),
                     FutureBuilder<Map<String, dynamic>>(
@@ -110,7 +108,6 @@ class HomeScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
-              // Utiliser un Container pour le GridView
               Container(
                 height: MediaQuery.of(context).size.height * 0.4,
                 child: GridView.count(
@@ -134,9 +131,17 @@ class HomeScreen extends StatelessWidget {
                       label: 'Permit Details',
                       color: Color(0xFF1E88E5),
                       onTap: () {
+                        // Passer des données fictives
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => PermitDetailsScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => PermitDetailsScreen(permitData: {
+                              'gid': '12345',
+                              'registre_1': 'John Doe',
+                              'type_tit_1': 'Mining Permit',
+                              'shape_area': '1000 ha',
+                            }),
+                          ),
                         );
                       },
                     ),
@@ -246,12 +251,15 @@ class HomeScreen extends StatelessWidget {
         shadowColor: Colors.black12,
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [color, Colors.white],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: color,
             borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(2, 4),
+              ),
+            ],
           ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -263,6 +271,7 @@ class HomeScreen extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(fontSize: 16, color: Colors.white),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
