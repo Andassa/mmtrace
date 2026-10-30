@@ -1,7 +1,8 @@
 /// Configuration API partagée (alignée sur backMineralMapping).
 ///
-/// Émulateur Android : `10.0.2.2` pointe vers le localhost de la machine hôte.
-/// Appareil réel / réseau : passer `--dart-define=API_BASE_URL=http://IP:3000`.
+/// Émulateur Android : `10.0.2.2` = localhost de la machine hôte.
+/// Appareil réel : `--dart-define=API_BASE_URL=http://IP_LAN:3000`.
+/// Ne pas utiliser une IP LAN depuis l'émulateur sauf si l'API écoute sur 0.0.0.0.
 class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',

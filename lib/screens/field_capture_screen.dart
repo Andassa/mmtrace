@@ -183,40 +183,72 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('GPS + photo · file offline persistante · sync API'),
+          Text(
+            'Ordre conseillé : GPS, puis substance, puis photo, puis Sync.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _substanceCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Substance',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
           const SizedBox(height: 12),
-          TextField(controller: _substanceCtrl, decoration: const InputDecoration(labelText: 'Substance', border: OutlineInputBorder())),
+          TextField(
+            controller: _noteCtrl,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Note (optionnel)',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
           const SizedBox(height: 12),
-          TextField(controller: _noteCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Note', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          if (_photo != null) Image.file(_photo!, height: 160, fit: BoxFit.cover),
-          const SizedBox(height: 12),
+          if (_photo != null) ...[
+            Image.file(_photo!, height: 160, fit: BoxFit.cover),
+            const SizedBox(height: 12),
+          ],
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              ElevatedButton.icon(onPressed: _loading ? null : _locate, icon: const Icon(Icons.my_location), label: const Text('GPS')),
-              ElevatedButton.icon(onPressed: _loading ? null : _takePhoto, icon: const Icon(Icons.camera_alt), label: const Text('Photo')),
-              ElevatedButton.icon(onPressed: _loading ? null : _saveLocalThenSync, icon: const Icon(Icons.cloud_upload), label: const Text('Sync')),
-              OutlinedButton(onPressed: _loading ? null : _flushQueue, child: Text('Vider file (${_queue.length})')),
+              ElevatedButton.icon(onPressed: _loading ? null : _locate, icon: const Icon(Icons.my_location), label: const Text('1. GPS')),
+              ElevatedButton.icon(onPressed: _loading ? null : _takePhoto, icon: const Icon(Icons.camera_alt), label: const Text('2. Photo')),
+              ElevatedButton.icon(onPressed: _loading ? null : _saveLocalThenSync, icon: const Icon(Icons.cloud_upload), label: const Text('3. Sync')),
+              OutlinedButton(onPressed: _loading ? null : _flushQueue, child: Text('Sync file (${_queue.length})')),
             ],
           ),
-          if (_loading) const LinearProgressIndicator(),
-          Text(_status),
-          const Divider(),
-          Text('File offline', style: Theme.of(context).textTheme.titleMedium),
-          ..._queue.map((q) => ListTile(
-                dense: true,
-                title: Text('${q['substance']}'),
-                subtitle: Text('${q['lat']}, ${q['lon']} · ${q['queuedAt'] ?? ''}'),
-              )),
-          if (_queue.isEmpty) const Text('Aucune observation en attente'),
-          const Divider(),
-          Text('Dernières obs serveur', style: Theme.of(context).textTheme.titleMedium),
+          if (_loading) const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: LinearProgressIndicator(),
+          ),
+          if (_status.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(_status, style: Theme.of(context).textTheme.bodySmall),
+          ],
+          const SizedBox(height: 20),
+          Text('En attente (offline)', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          if (_queue.isEmpty)
+            Text('Aucune observation en attente', style: Theme.of(context).textTheme.bodySmall)
+          else
+            ..._queue.map((q) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text('${q['substance']}'),
+                  subtitle: Text('${q['lat']}, ${q['lon']}'),
+                )),
+          const SizedBox(height: 16),
+          Text('Dernières obs serveur', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
           ..._serverObs.map((o) => ListTile(
+                contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: Text('${o['substance'] ?? '—'}'),
-                subtitle: Text('id=${o['id']} · ${o['lat']}, ${o['lon']}'),
+                title: Text('${o['substance'] ?? 'n/a'}'),
+                subtitle: Text('id=${o['id']}  ${o['lat']}, ${o['lon']}'),
               )),
         ],
       ),
