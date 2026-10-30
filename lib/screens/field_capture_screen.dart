@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_client.dart';
+import '../services/offline_queue.dart';
 
-/// Capture terrain : GPS + substance + note + photo → sync API.
 class FieldCaptureScreen extends StatefulWidget {
   const FieldCaptureScreen({super.key});
 
@@ -22,7 +22,32 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
   double? _lat;
   bool _loading = false;
   String _status = '';
-  final List<Map<String, dynamic>> _queue = [];
+  List<Map<String, dynamic>> _queue = [];
+  List<Map<String, dynamic>> _serverObs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _reloadQueue();
+    _loadServerObs();
+  }
+
+  Future<void> _reloadQueue() async {
+    final q = await OfflineQueue.load();
+    setState(() => _queue = q);
+  }
+
+  Future<void> _loadServerObs() async {
+    try {
+      final res = await ApiClient.instance.get('/api/terrain/observations?limit=30');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _serverObs = List<Map<String, dynamic>>.from((data['observations'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _locate() async {
     setState(() {
@@ -30,8 +55,7 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
       _status = 'Localisation…';
     });
     try {
-      final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) {
+      if (!await Geolocator.isLocationServiceEnabled()) {
         setState(() => _status = 'Activez le GPS');
         return;
       }
@@ -58,9 +82,7 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
 
   Future<void> _takePhoto() async {
     final shot = await _picker.pickImage(source: ImageSource.camera, imageQuality: 70, maxWidth: 1600);
-    if (shot != null) {
-      setState(() => _photo = File(shot.path));
-    }
+    if (shot != null) setState(() => _photo = File(shot.path));
   }
 
   Future<void> _syncOne(Map<String, dynamic> payload) async {
@@ -82,8 +104,7 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
 
     String? photoBase64;
     if (_photo != null) {
-      final bytes = await _photo!.readAsBytes();
-      photoBase64 = base64Encode(bytes);
+      photoBase64 = base64Encode(await _photo!.readAsBytes());
     }
 
     final payload = {
@@ -92,7 +113,7 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
       'lon': _lon,
       'lat': _lat,
       if (photoBase64 != null) 'photoBase64': photoBase64,
-      'meta': {'source': 'mmtrace_field', 'offlineQueued': false},
+      'meta': {'source': 'mmtrace_field'},
     };
 
     setState(() {
@@ -102,8 +123,9 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
 
     try {
       if (!ApiClient.instance.hasSession) {
-        _queue.add(payload);
-        setState(() => _status = 'Hors session — observation mise en file (${_queue.length}). Reconnectez-vous puis « Vider la file ».');
+        await OfflineQueue.enqueue(payload);
+        await _reloadQueue();
+        setState(() => _status = 'Hors session — sauvé offline (${_queue.length})');
         return;
       }
       await _syncOne(payload);
@@ -112,9 +134,11 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
         _photo = null;
         _noteCtrl.clear();
       });
+      await _loadServerObs();
     } catch (e) {
-      _queue.add(payload);
-      setState(() => _status = 'Échec sync — mis en file (${_queue.length}): $e');
+      await OfflineQueue.enqueue(payload);
+      await _reloadQueue();
+      setState(() => _status = 'Échec réseau — offline (${_queue.length}): $e');
     } finally {
       setState(() => _loading = false);
     }
@@ -126,8 +150,8 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
       return;
     }
     setState(() => _loading = true);
-    var ok = 0;
     final remaining = <Map<String, dynamic>>[];
+    var ok = 0;
     for (final item in List.of(_queue)) {
       try {
         await _syncOne(item);
@@ -136,10 +160,10 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
         remaining.add(item);
       }
     }
+    await OfflineQueue.replaceAll(remaining);
+    await _reloadQueue();
+    await _loadServerObs();
     setState(() {
-      _queue
-        ..clear()
-        ..addAll(remaining);
       _status = 'Sync file: $ok OK, ${remaining.length} restant(s)';
       _loading = false;
     });
@@ -159,24 +183,13 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Collecte GPS + photo → API Mineral Mapping', style: Theme.of(context).textTheme.bodyMedium),
+          const Text('GPS + photo · file offline persistante · sync API'),
           const SizedBox(height: 12),
-          TextField(
-            controller: _substanceCtrl,
-            decoration: const InputDecoration(labelText: 'Substance', border: OutlineInputBorder()),
-          ),
+          TextField(controller: _substanceCtrl, decoration: const InputDecoration(labelText: 'Substance', border: OutlineInputBorder())),
           const SizedBox(height: 12),
-          TextField(
-            controller: _noteCtrl,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Note terrain', border: OutlineInputBorder()),
-          ),
+          TextField(controller: _noteCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Note', border: OutlineInputBorder())),
           const SizedBox(height: 12),
-          if (_photo != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(_photo!, height: 180, fit: BoxFit.cover),
-            ),
+          if (_photo != null) Image.file(_photo!, height: 160, fit: BoxFit.cover),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -188,9 +201,23 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
               OutlinedButton(onPressed: _loading ? null : _flushQueue, child: Text('Vider file (${_queue.length})')),
             ],
           ),
-          const SizedBox(height: 16),
           if (_loading) const LinearProgressIndicator(),
-          Text(_status, style: TextStyle(color: Colors.blueGrey[800])),
+          Text(_status),
+          const Divider(),
+          Text('File offline', style: Theme.of(context).textTheme.titleMedium),
+          ..._queue.map((q) => ListTile(
+                dense: true,
+                title: Text('${q['substance']}'),
+                subtitle: Text('${q['lat']}, ${q['lon']} · ${q['queuedAt'] ?? ''}'),
+              )),
+          if (_queue.isEmpty) const Text('Aucune observation en attente'),
+          const Divider(),
+          Text('Dernières obs serveur', style: Theme.of(context).textTheme.titleMedium),
+          ..._serverObs.map((o) => ListTile(
+                dense: true,
+                title: Text('${o['substance'] ?? '—'}'),
+                subtitle: Text('id=${o['id']} · ${o['lat']}, ${o['lon']}'),
+              )),
         ],
       ),
     );
