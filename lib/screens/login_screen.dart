@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../main.dart'; // Assurez-vous d'importer MainScreen
+import '../config/api_config.dart';
+import '../main.dart';
+import '../services/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -15,7 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   Future<void> _login() async {
-    final String username = _usernameController.text;
+    final String username = _usernameController.text.trim();
     final String password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
@@ -27,43 +28,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _isLoading = true;
+      _errorMessage = '';
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('http://192.168.88.69:3000/sendDatalogin'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-          'User-Agent': 'Flutter',
-        },
-        body: jsonEncode(<String, String>{
-          'username': username,
-          'password': password,
-        }),
-      );
+      final response = await ApiClient.instance.post('/sendDatalogin', {
+        'username': username,
+        'password': password,
+      });
 
       setState(() {
         _isLoading = false;
       });
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data.containsKey('redirect')) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => MainScreen()),
-          );
-        } else if (data.containsKey('erreur')) {
-          setState(() {
-            _errorMessage = data['erreur']['message'] ?? 'Erreur inconnue';
-          });
-        }
-      } else {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _errorMessage = data['erreur']?['message'] ?? 'Erreur inconnue';
-        });
+      final dynamic data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+
+      if (response.statusCode == 200 && data is Map && data['redirect'] != null) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => MainScreen()),
+        );
+        return;
       }
+
+      String message = 'Erreur de connexion';
+      if (data is Map && data['erreur'] != null) {
+        final err = data['erreur'];
+        if (err is Map) {
+          message = err['message']?.toString() ?? message;
+        } else {
+          message = err.toString();
+        }
+      }
+      setState(() {
+        _errorMessage = message;
+      });
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -102,6 +102,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  SizedBox(height: 8),
+                  Text(
+                    ApiConfig.baseUrl,
+                    style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                  ),
                   SizedBox(height: 20),
                   TextField(
                     controller: _usernameController,
@@ -127,10 +132,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   else
                     ElevatedButton(
                       onPressed: _login,
-                      child: Text('Se connecter'),
                       style: ElevatedButton.styleFrom(
                         minimumSize: Size(double.infinity, 50),
                       ),
+                      child: Text('Se connecter'),
                     ),
                   SizedBox(height: 20),
                   if (_errorMessage.isNotEmpty)

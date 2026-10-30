@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mmtrace/screens/permit_tracking_screen.dart';
+import '../config/api_config.dart';
 import 'permit_details_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -25,16 +26,26 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _fetchPermisGeometries() async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.88.69:3000/api/utilisateur/getPermisGeometries'));
+      final response = await http.get(
+        ApiConfig.uri('/api/utilisateur/getPermisGeometries?limit=300'),
+        headers: ApiConfig.jsonHeaders(),
+      );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final dynamic decoded = json.decode(response.body);
+        final List<dynamic> data = decoded is List
+            ? decoded
+            : (decoded is Map && decoded['features'] is List)
+                ? decoded['features'] as List<dynamic>
+                : <dynamic>[];
 
         setState(() {
           _polygons = [];
           for (var item in data) {
             if (item['geom'] != null) {
-              final geometry = json.decode(item['geom']);
+              final geometry = item['geom'] is String
+                  ? json.decode(item['geom'])
+                  : item['geom'];
               final coordinates = geometry['coordinates'];
 
               if (geometry['type'] == 'MultiPolygon' && coordinates is List) {
@@ -44,11 +55,11 @@ class _MapScreenState extends State<MapScreen> {
                   var points = polygon[0].map<LatLng>((point) {
                     if (point is List && point.length >= 2) {
                       return LatLng(
-                        double.parse(point[1].toString()),  // latitude
-                        double.parse(point[0].toString()),  // longitude
+                        double.parse(point[1].toString()),
+                        double.parse(point[0].toString()),
                       );
                     }
-                    return LatLng(0, 0); // Valeur par défaut
+                    return LatLng(0, 0);
                   }).toList();
 
                   polygonPoints.addAll(points);

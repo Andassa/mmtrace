@@ -30,7 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -49,24 +50,11 @@ dependencies:
   location: ^7.0.1
   image: ^3.3.0
   geolocator: ^13.0.1
-  #flutter_tflite: ^1.0.1
-  #tflite_flutter_plus: ^0.0.1
-
-
-
-
-
-dependency_overrides:
-  #image_picker: ^0.8.5+3  # Forcer l'utilisation de cette version
-  camera: ^0.10.4  # Forcer l'utilisation de cette version
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
   provider: ^6.1.2
-  flutter_localization: ^0.2.2
   http: ^1.2.2
+  latlong2: ^0.9.1
+  iconsax: ^0.0.8
   firebase_core: ^3.5.0
-  #firebase_auth: ^5.3.0
   firebase_storage: ^12.3.1
   google_fonts: ^6.2.1
   dio: ^5.7.0
@@ -74,13 +62,14 @@ dev_dependencies:
   google_maps_flutter: ^2.9.0
   permission_handler: ^11.3.1
   easy_localization: ^3.0.7
-  latlong2: ^0.9.1
-  iconsax: ^0.0.8
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
+  flutter_localization: ^0.2.2
+
+dependency_overrides:
+  camera: ^0.10.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
   flutter_lints: ^5.0.0
 
 # For information on the generic Dart part of this file, see the

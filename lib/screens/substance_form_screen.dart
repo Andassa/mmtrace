@@ -105,9 +105,11 @@ class _SubstanceFormScreenState extends State<SubstanceFormScreen> {
       print('Max confidence: $maxConfidence, Predicted index: $predictedIndex');
 
       setState(() {
-        _substanceNameController.text = maxConfidence < 0.7
-            ? 'Substance non reconnue'
-            : (_labels[predictedIndex] ?? 'Inconnu');
+        final label = (predictedIndex >= 0 && predictedIndex < _labels.length)
+            ? _labels[predictedIndex]
+            : 'Inconnu';
+        _substanceNameController.text =
+            maxConfidence < 0.7 ? 'Substance non reconnue' : label;
       });
     }
   }

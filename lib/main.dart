@@ -6,6 +6,7 @@ import 'screens/map_screen.dart';
 import 'screens/permit_details_screen.dart';
 import 'screens/substance_form_screen.dart';
 import 'screens/permit_tracking_screen.dart';
+import 'screens/field_capture_screen.dart';
 
 void main() {
   runApp(MyApp());
@@ -46,6 +47,7 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(icon: Icon(Iconsax.document_text), label: 'Permits'),
           BottomNavigationBarItem(icon: Icon(Iconsax.archive_1), label: 'Substances'),
           BottomNavigationBarItem(icon: Icon(Iconsax.graph), label: 'Tracking'),
+          BottomNavigationBarItem(icon: Icon(Iconsax.location), label: 'Terrain'),
         ],
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
@@ -73,6 +75,8 @@ class _MainScreenState extends State<MainScreen> {
         return SubstanceFormScreen();
       case 4:
         return PermitTrackingScreen();
+      case 5:
+        return const FieldCaptureScreen();
       default:
         return HomeScreen();
     }
