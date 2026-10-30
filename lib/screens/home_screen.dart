@@ -1,16 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:iconsax/iconsax.dart';
+import 'package:intl/intl.dart';
+import '../services/api_client.dart';
+import '../services/offline_queue.dart';
 import '../theme/bcmm_theme.dart';
-import 'field_capture_screen.dart';
-import 'map_screen.dart';
+import '../widgets/bcmm_ui.dart';
 
-/// Accueil terrain BCMM : une seule question = "que faire maintenant ?"
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+/// Accueil type inspection (OpenGov / Scharf) : statut + liste d'actions.
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({
+    super.key,
+    required this.onOpenTerrain,
+    required this.onOpenMap,
+  });
+
+  final VoidCallback onOpenTerrain;
+  final VoidCallback onOpenMap;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _pending = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPending();
+  }
+
+  Future<void> _loadPending() async {
+    final q = await OfflineQueue.load();
+    if (mounted) setState(() => _pending = q.length);
+  }
 
   @override
   Widget build(BuildContext context) {
+    String today;
+    try {
+      today = DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(DateTime.now());
+    } catch (_) {
+      today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    }
+    final online = ApiClient.instance.hasSession;
+
     return Scaffold(
       backgroundColor: Bcmm.canvas,
       appBar: AppBar(
@@ -18,166 +52,131 @@ class HomeScreen extends StatelessWidget {
           children: [
             Image.asset(
               'assets/images/bcmm.png',
-              height: 28,
+              height: 26,
               errorBuilder: (_, __, ___) => Text(
                 'BCMM',
                 style: GoogleFonts.ibmPlexSans(
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: Bcmm.primary,
-                  fontSize: 16,
+                  fontSize: 15,
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              'Terrain',
-              style: GoogleFonts.ibmPlexSans(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: Bcmm.title,
-              ),
-            ),
+            const Text('Terrain'),
           ],
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        children: [
-          Text(
-            'Que voulez-vous faire ?',
-            style: GoogleFonts.ibmPlexSans(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Bcmm.title,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Application terrain Mineral Mapping. Compte interne BCMM.',
-            style: GoogleFonts.ibmPlexSans(
-              fontSize: 13,
-              color: Bcmm.muted,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _ActionTile(
-            icon: Iconsax.gps,
-            title: 'Capturer une observation',
-            subtitle: 'GPS, photo, substance. File offline si pas de réseau.',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const FieldCaptureScreen()),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _ActionTile(
-            icon: Iconsax.map_1,
-            title: 'Voir la carte des permis',
-            subtitle: 'Repérer un titre minier près de votre position.',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const MapScreen()),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Rappel',
-            style: GoogleFonts.ibmPlexSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Bcmm.muted,
-              letterSpacing: 0.02,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Bcmm.card,
-              border: Border.all(color: Bcmm.border),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              '1. Activez le GPS.\n'
-              '2. Capturez sur Terrain (onglet du bas).\n'
-              '3. Si hors ligne, la file se synchronise plus tard.',
-              style: GoogleFonts.ibmPlexSans(
-                fontSize: 13,
-                height: 1.5,
-                color: Bcmm.body,
+      body: RefreshIndicator(
+        color: Bcmm.primary,
+        onRefresh: _loadPending,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+              decoration: const BoxDecoration(
+                color: Bcmm.card,
+                border: Border(bottom: BorderSide(color: Bcmm.border)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    today.isEmpty
+                        ? ''
+                        : '${today[0].toUpperCase()}${today.substring(1)}',
+                    style: GoogleFonts.ibmPlexSans(fontSize: 13, color: Bcmm.muted),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Session de terrain',
+                    style: GoogleFonts.ibmPlexSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Bcmm.title,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      BcmmStatusChip(
+                        label: online ? 'Session active' : 'Hors session',
+                        ok: online,
+                        pending: !online,
+                      ),
+                      BcmmStatusChip(
+                        label: _pending == 0 ? 'Rien à synchroniser' : '$_pending à synchroniser',
+                        ok: _pending == 0,
+                        pending: _pending > 0,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Bcmm.card,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(4),
-        side: const BorderSide(color: Bcmm.border),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: Bcmm.primary, size: 26),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.ibmPlexSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Bcmm.title,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.ibmPlexSans(
-                        fontSize: 13,
-                        color: Bcmm.muted,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 20),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: BcmmSectionLabel('Travail'),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Bcmm.border),
+                  bottom: BorderSide(color: Bcmm.border),
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Bcmm.muted),
-            ],
-          ),
+              child: Column(
+                children: [
+                  BcmmMenuRow(
+                    title: 'Nouvelle observation',
+                    subtitle: 'GPS, substance, photo, envoi',
+                    onTap: widget.onOpenTerrain,
+                  ),
+                  BcmmMenuRow(
+                    title: 'Carte des permis',
+                    subtitle: 'Consulter un titre sur la carte',
+                    onTap: widget.onOpenMap,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: BcmmSectionLabel('Procédure'),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              margin: EdgeInsets.zero,
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              decoration: const BoxDecoration(
+                color: Bcmm.card,
+                border: Border(
+                  top: BorderSide(color: Bcmm.border),
+                  bottom: BorderSide(color: Bcmm.border),
+                ),
+              ),
+              child: Text(
+                'Sur le terrain : positionnez le GPS, saisissez la substance, '
+                'ajoutez une photo si besoin, puis synchronisez. '
+                'Sans réseau, les saisies restent en file locale.',
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: Bcmm.body,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );

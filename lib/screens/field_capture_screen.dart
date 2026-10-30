@@ -2,10 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_client.dart';
 import '../services/offline_queue.dart';
+import '../theme/bcmm_theme.dart';
+import '../widgets/bcmm_ui.dart';
 
+/// Capture observation : flux inspection (GPS → détails → preuve → envoi).
 class FieldCaptureScreen extends StatefulWidget {
   const FieldCaptureScreen({super.key});
 
@@ -25,6 +29,8 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
   List<Map<String, dynamic>> _queue = [];
   List<Map<String, dynamic>> _serverObs = [];
 
+  bool get _gpsOk => _lon != null && _lat != null;
+
   @override
   void initState() {
     super.initState();
@@ -39,11 +45,13 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
 
   Future<void> _loadServerObs() async {
     try {
-      final res = await ApiClient.instance.get('/api/terrain/observations?limit=30');
+      final res = await ApiClient.instance.get('/api/terrain/observations?limit=20');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
-          _serverObs = List<Map<String, dynamic>>.from((data['observations'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+          _serverObs = List<Map<String, dynamic>>.from(
+            (data['observations'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+          );
         });
       }
     } catch (_) {}
@@ -52,11 +60,11 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
   Future<void> _locate() async {
     setState(() {
       _loading = true;
-      _status = 'Localisation…';
+      _status = 'Localisation en cours…';
     });
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        setState(() => _status = 'Activez le GPS');
+        setState(() => _status = 'Activez le GPS du téléphone.');
         return;
       }
       var perm = await Geolocator.checkPermission();
@@ -64,14 +72,14 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-        setState(() => _status = 'Permission localisation refusée');
+        setState(() => _status = 'Permission de localisation refusée.');
         return;
       }
       final pos = await Geolocator.getCurrentPosition();
       setState(() {
         _lon = pos.longitude;
         _lat = pos.latitude;
-        _status = 'GPS OK: ${_lat!.toStringAsFixed(5)}, ${_lon!.toStringAsFixed(5)}';
+        _status = 'Position enregistrée.';
       });
     } catch (e) {
       setState(() => _status = 'Erreur GPS: $e');
@@ -93,12 +101,12 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
   }
 
   Future<void> _saveLocalThenSync() async {
-    if (_lon == null || _lat == null) {
-      setState(() => _status = 'GPS requis');
+    if (!_gpsOk) {
+      setState(() => _status = 'Position GPS requise.');
       return;
     }
     if (_substanceCtrl.text.trim().isEmpty) {
-      setState(() => _status = 'Substance requise');
+      setState(() => _status = 'Substance requise.');
       return;
     }
 
@@ -118,19 +126,19 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
 
     setState(() {
       _loading = true;
-      _status = 'Synchronisation…';
+      _status = 'Envoi…';
     });
 
     try {
       if (!ApiClient.instance.hasSession) {
         await OfflineQueue.enqueue(payload);
         await _reloadQueue();
-        setState(() => _status = 'Hors session — sauvé offline (${_queue.length})');
+        setState(() => _status = 'Hors session. Sauvé en file locale (${_queue.length}).');
         return;
       }
       await _syncOne(payload);
       setState(() {
-        _status = 'Observation synchronisée';
+        _status = 'Observation envoyée.';
         _photo = null;
         _noteCtrl.clear();
       });
@@ -138,7 +146,7 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
     } catch (e) {
       await OfflineQueue.enqueue(payload);
       await _reloadQueue();
-      setState(() => _status = 'Échec réseau — offline (${_queue.length}): $e');
+      setState(() => _status = 'Réseau indisponible. Mis en file (${_queue.length}).');
     } finally {
       setState(() => _loading = false);
     }
@@ -146,7 +154,7 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
 
   Future<void> _flushQueue() async {
     if (_queue.isEmpty) {
-      setState(() => _status = 'File vide');
+      setState(() => _status = 'File déjà vide.');
       return;
     }
     setState(() => _loading = true);
@@ -164,7 +172,7 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
     await _reloadQueue();
     await _loadServerObs();
     setState(() {
-      _status = 'Sync file: $ok OK, ${remaining.length} restant(s)';
+      _status = 'Synchronisation: $ok ok, ${remaining.length} restant(s).';
       _loading = false;
     });
   }
@@ -176,82 +184,252 @@ class _FieldCaptureScreenState extends State<FieldCaptureScreen> {
     super.dispose();
   }
 
+  Widget _panel({required Widget child, Border? border}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Bcmm.card,
+        border: border ??
+            const Border.symmetric(
+              horizontal: BorderSide(color: Bcmm.border),
+            ),
+      ),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Capture terrain')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            'Ordre conseillé : GPS, puis substance, puis photo, puis Sync.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B)),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _substanceCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Substance',
-              border: OutlineInputBorder(),
-              isDense: true,
+      backgroundColor: Bcmm.canvas,
+      appBar: AppBar(
+        title: const Text('Observation'),
+        actions: [
+          if (_queue.isNotEmpty)
+            TextButton(
+              onPressed: _loading ? null : _flushQueue,
+              child: Text('Sync (${_queue.length})'),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _noteCtrl,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Note (optionnel)',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_photo != null) ...[
-            Image.file(_photo!, height: 160, fit: BoxFit.cover),
-            const SizedBox(height: 12),
-          ],
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ElevatedButton.icon(onPressed: _loading ? null : _locate, icon: const Icon(Icons.my_location), label: const Text('1. GPS')),
-              ElevatedButton.icon(onPressed: _loading ? null : _takePhoto, icon: const Icon(Icons.camera_alt), label: const Text('2. Photo')),
-              ElevatedButton.icon(onPressed: _loading ? null : _saveLocalThenSync, icon: const Icon(Icons.cloud_upload), label: const Text('3. Sync')),
-              OutlinedButton(onPressed: _loading ? null : _flushQueue, child: Text('Sync file (${_queue.length})')),
-            ],
-          ),
-          if (_loading) const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: LinearProgressIndicator(),
-          ),
-          if (_status.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(_status, style: Theme.of(context).textTheme.bodySmall),
-          ],
-          const SizedBox(height: 20),
-          Text('En attente (offline)', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          if (_queue.isEmpty)
-            Text('Aucune observation en attente', style: Theme.of(context).textTheme.bodySmall)
-          else
-            ..._queue.map((q) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: Text('${q['substance']}'),
-                  subtitle: Text('${q['lat']}, ${q['lon']}'),
-                )),
-          const SizedBox(height: 16),
-          Text('Dernières obs serveur', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          ..._serverObs.map((o) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                title: Text('${o['substance'] ?? 'n/a'}'),
-                subtitle: Text('id=${o['id']}  ${o['lat']}, ${o['lon']}'),
-              )),
         ],
       ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 16),
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  decoration: const BoxDecoration(
+                    color: Bcmm.card,
+                    border: Border(bottom: BorderSide(color: Bcmm.border)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(child: _StepBadge(n: '1', label: 'GPS', done: _gpsOk)),
+                      Expanded(
+                        child: _StepBadge(
+                          n: '2',
+                          label: 'Détails',
+                          done: _substanceCtrl.text.trim().isNotEmpty,
+                        ),
+                      ),
+                      Expanded(child: _StepBadge(n: '3', label: 'Photo', done: _photo != null)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: BcmmSectionLabel('Position'),
+                ),
+                const SizedBox(height: 8),
+                _panel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        _gpsOk
+                            ? '${_lat!.toStringAsFixed(5)}, ${_lon!.toStringAsFixed(5)}'
+                            : 'Aucune position',
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: _gpsOk ? Bcmm.title : Bcmm.muted,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _locate,
+                        icon: const Icon(Icons.my_location, size: 18),
+                        label: Text(_gpsOk ? 'Actualiser le GPS' : 'Obtenir le GPS'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: BcmmSectionLabel('Détails'),
+                ),
+                const SizedBox(height: 8),
+                _panel(
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _substanceCtrl,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(labelText: 'Substance'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _noteCtrl,
+                        maxLines: 3,
+                        decoration: const InputDecoration(labelText: 'Note (optionnel)'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: BcmmSectionLabel('Preuve photo'),
+                ),
+                const SizedBox(height: 8),
+                _panel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_photo != null) ...[
+                        Image.file(_photo!, height: 160, fit: BoxFit.cover),
+                        const SizedBox(height: 12),
+                      ],
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _takePhoto,
+                        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                        label: Text(_photo == null ? 'Prendre une photo' : 'Reprendre la photo'),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_status.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      _status,
+                      style: GoogleFonts.ibmPlexSans(fontSize: 13, color: Bcmm.body),
+                    ),
+                  ),
+                ],
+                if (_queue.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: BcmmSectionLabel('File locale'),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._queue.map(
+                    (q) => Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: const BoxDecoration(
+                        color: Bcmm.card,
+                        border: Border(bottom: BorderSide(color: Bcmm.border)),
+                      ),
+                      child: Text(
+                        '${q['substance']}  ·  ${q['lat']}, ${q['lon']}',
+                        style: GoogleFonts.ibmPlexSans(fontSize: 13, color: Bcmm.body),
+                      ),
+                    ),
+                  ),
+                ],
+                if (_serverObs.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: BcmmSectionLabel('Dernières sur serveur'),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._serverObs.take(5).map(
+                    (o) => Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: const BoxDecoration(
+                        color: Bcmm.card,
+                        border: Border(bottom: BorderSide(color: Bcmm.border)),
+                      ),
+                      child: Text(
+                        '${o['substance'] ?? 'n/a'}  ·  ${o['lat']}, ${o['lon']}',
+                        style: GoogleFonts.ibmPlexSans(fontSize: 13, color: Bcmm.body),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (_loading) const LinearProgressIndicator(minHeight: 2),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: const BoxDecoration(
+              color: Bcmm.card,
+              border: Border(top: BorderSide(color: Bcmm.border)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _saveLocalThenSync,
+                child: const Text('Enregistrer et synchroniser'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepBadge extends StatelessWidget {
+  const _StepBadge({required this.n, required this.label, required this.done});
+  final String n;
+  final String label;
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          alignment: Alignment.center,
+          color: done ? Bcmm.primary : Bcmm.border,
+          child: Text(
+            done ? '✓' : n,
+            style: GoogleFonts.ibmPlexSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: done ? Colors.white : Bcmm.muted,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.ibmPlexSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: done ? Bcmm.primary : Bcmm.muted,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

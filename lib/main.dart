@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:iconsax/iconsax.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/field_capture_screen.dart';
 import 'theme/bcmm_theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('fr_FR');
   runApp(const MyApp());
 }
 
@@ -20,12 +22,11 @@ class MyApp extends StatelessWidget {
       theme: Bcmm.theme(),
       home: const LoginScreen(),
       debugShowCheckedModeBanner: false,
+      locale: const Locale('fr', 'FR'),
     );
   }
 }
 
-/// Navigation terrain BCMM : 3 actions principales + carte.
-/// (Pattern FieldForce / inspection : peu d'onglets, labels clairs.)
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -36,43 +37,46 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _index = 0;
 
-  static const _pages = <Widget>[
-    HomeScreen(),
-    FieldCaptureScreen(),
-    MapScreen(),
-  ];
+  void _go(int i) => setState(() => _index = i);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: _pages,
+    final pages = <Widget>[
+      HomeScreen(
+        onOpenTerrain: () => _go(1),
+        onOpenMap: () => _go(2),
       ),
+      const FieldCaptureScreen(),
+      const MapScreen(),
+    ];
+
+    return Scaffold(
+      body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: Bcmm.border)),
           color: Bcmm.card,
         ),
-        child: SafeArea(
-          child: BottomNavigationBar(
-            currentIndex: _index,
-            onTap: (i) => setState(() => _index = i),
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Iconsax.home_2),
-                label: 'Accueil',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Iconsax.gps),
-                label: 'Terrain',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Iconsax.map_1),
-                label: 'Carte',
-              ),
-            ],
-          ),
+        child: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: _go,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Accueil',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.pin_drop_outlined),
+              selectedIcon: Icon(Icons.pin_drop),
+              label: 'Observation',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map),
+              label: 'Carte',
+            ),
+          ],
         ),
       ),
     );

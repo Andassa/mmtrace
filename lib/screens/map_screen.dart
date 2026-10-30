@@ -226,7 +226,7 @@ class _MapScreenState extends State<MapScreen> {
                   for (var i = 0; i < _polygons.length; i++)
                     Polygon(
                       points: _polygons[i],
-                      color: (i == _selectedIndex ? Bcmm.primary : Bcmm.primary).withOpacity(i == _selectedIndex ? 0.45 : 0.22),
+                      color: Bcmm.primary.withValues(alpha: i == _selectedIndex ? 0.45 : 0.22),
                       borderColor: Bcmm.primary,
                       borderStrokeWidth: i == _selectedIndex ? 2.5 : 1.2,
                     ),
@@ -235,25 +235,27 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
           Positioned(
-            left: 12,
-            right: 12,
-            top: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Bcmm.card,
-                border: Border.all(color: Bcmm.border),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                _loading
-                    ? 'Chargement des permis…'
-                    : _error ??
-                        'Touchez un polygone bleu pour voir le permis. Affichage limité à $_limit titres (performance).',
-                style: GoogleFonts.ibmPlexSans(
-                  fontSize: 12,
-                  height: 1.35,
-                  color: _error != null ? Bcmm.danger : Bcmm.body,
+            left: 0,
+            right: 0,
+            top: 0,
+            child: Material(
+              color: Bcmm.card,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Bcmm.border)),
+                ),
+                child: Text(
+                  _loading
+                      ? 'Chargement des permis…'
+                      : _error ??
+                          'Appuyez sur un polygone pour ouvrir la fiche. Limite: $_limit titres.',
+                  style: GoogleFonts.ibmPlexSans(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: _error != null ? Bcmm.danger : Bcmm.body,
+                  ),
                 ),
               ),
             ),
